@@ -15,7 +15,7 @@ from gradio import processing_utils
 from zhconv import convert
 
 from text import text_to_sequence, _clean_text
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
+device = "cuda:1" if torch.cuda.is_available() else "cpu"
 import logging
 logging.getLogger("PIL").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
