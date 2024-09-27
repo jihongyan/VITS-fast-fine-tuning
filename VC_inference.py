@@ -9,7 +9,10 @@ import utils
 from models import SynthesizerTrn
 import gradio as gr
 import librosa
-import webbrowser
+import whisper
+from whisper.utils import get_writer
+from gradio import processing_utils
+from zhconv import convert
 
 from text import text_to_sequence, _clean_text
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -35,6 +38,24 @@ def get_text(text, hps, is_symbol):
     text_norm = LongTensor(text_norm)
     return text_norm
 
+# 秒转时分秒毫秒
+def seconds_to_hmsm(seconds):
+    hours = str(int(seconds // 3600))
+    minutes = str(int((seconds % 3600) // 60))
+    seconds = seconds % 60
+    milliseconds = str(int(int((seconds - int(seconds)) * 1000))) # 毫秒留三位
+    seconds = str(int(seconds))
+    # 补0
+    if len(hours) < 2:
+        hours = '0' + hours
+    if len(minutes) < 2:
+        minutes = '0' + minutes
+    if len(seconds) < 2:
+        seconds = '0' + seconds
+    if len(milliseconds) < 3:
+        milliseconds = '0'*(3-len(milliseconds)) + milliseconds
+    return f"{hours}:{minutes}:{seconds},{milliseconds}"
+
 def create_tts_fn(model, hps, speaker_ids):
     def tts_fn(text, speaker, language, speed):
         if language is not None:
@@ -48,7 +69,36 @@ def create_tts_fn(model, hps, speaker_ids):
             audio = model.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=.667, noise_scale_w=0.8,
                                 length_scale=1.0 / speed)[0][0, 0].data.cpu().float().numpy()
         del stn_tst, x_tst, x_tst_lengths, sid
-        return "Success", (hps.data.sampling_rate, audio)
+        
+        audio_path = './outputs/output_audio.wav'
+        processing_utils.audio_to_file(hps.data.sampling_rate, audio, audio_path, format="wav")
+
+        whisper_model = whisper.load_model('small')
+        options = dict(beam_size=5, best_of=5, word_timestamps=True)
+        transcribe_options = dict(task="transcribe", **options)
+        result = whisper_model.transcribe(audio_path, fp16=False, language='Chinese', **transcribe_options)
+        
+        # 结果可能是繁体，转为简体zh-cn
+        for i in range(len(result['segments'])):
+            result['segments'][i]['text'] = convert(result['segments'][i]['text'], 'zh-cn')
+        
+        # 写入字幕文件
+        writer = get_writer("srt", './outputs')
+        writer_args = {"max_line_width":6, "max_line_count":2}
+        #writer_args = {"max_words_per_line":6}
+        writer(result, audio_path, **writer_args)
+        
+        srt_file = "./outputs/output_audio.srt"
+        # with open(srt_file, 'w', encoding='utf-8') as f:
+            # i = 1
+            # for r in result['segments']:
+	            # f.write(str(i)+'\n')
+	            # f.write(seconds_to_hmsm(float(r['start']))+' --> '+seconds_to_hmsm(float(r['end']))+'\n')
+	            # i += 1
+	            # f.write(convert(r['text'], 'zh-cn')+'\n') # 结果可能是繁体，转为简体zh-cn
+	            # f.write('\n')
+
+        return "Success", srt_file, (hps.data.sampling_rate, audio)
 
     return tts_fn
 
@@ -121,18 +171,19 @@ if __name__ == "__main__":
                                                 label='速度 Speed')
                 with gr.Column():
                     text_output = gr.Textbox(label="Message")
+                    srt_output = gr.File(label="Srt字幕文件")
                     audio_output = gr.Audio(label="Output Audio", elem_id="tts-audio")
                     btn = gr.Button("Generate!")
                     btn.click(tts_fn,
                               inputs=[textbox, char_dropdown, language_dropdown, duration_slider,],
-                              outputs=[text_output, audio_output])
+                              outputs=[text_output, srt_output, audio_output])
         with gr.Tab("Voice Conversion"):
             gr.Markdown("""
                             录制或上传声音，并选择要转换的音色。
             """)
             with gr.Column():
-                record_audio = gr.Audio(label="record your voice", source="microphone")
-                upload_audio = gr.Audio(label="or upload audio here", source="upload")
+                record_audio = gr.Audio(label="record your voice", sources="microphone")
+                upload_audio = gr.Audio(label="or upload audio here", sources="upload")
                 source_speaker = gr.Dropdown(choices=speakers, value=speakers[0], label="source speaker")
                 target_speaker = gr.Dropdown(choices=speakers, value=speakers[0], label="target speaker")
             with gr.Column():
@@ -141,6 +192,6 @@ if __name__ == "__main__":
             btn = gr.Button("Convert!")
             btn.click(vc_fn, inputs=[source_speaker, target_speaker, record_audio, upload_audio],
                       outputs=[message_box, converted_audio])
-    webbrowser.open("http://127.0.0.1:7860")
-    app.launch(share=args.share)
+
+    app.launch(share=args.share,server_port=7861)
 
