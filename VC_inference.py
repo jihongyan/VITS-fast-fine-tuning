@@ -73,7 +73,7 @@ def create_tts_fn(model, hps, speaker_ids):
         audio_path = './outputs/output_audio.wav'
         #processing_utils.audio_to_file(hps.data.sampling_rate, audio, audio_path, format="wav")
 
-        whisper_model = whisper.load_model('large')
+        whisper_model = whisper.load_model('small')
         options = dict(beam_size=5, best_of=5, word_timestamps=True)
         transcribe_options = dict(task="transcribe", **options)
         result = whisper_model.transcribe(audio, fp16=False, language='Chinese', initial_prompt=text, **transcribe_options)
