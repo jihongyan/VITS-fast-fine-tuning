@@ -59,9 +59,9 @@ def seconds_to_hmsm(seconds):
 def create_tts_fn(model, hps, speaker_ids):
     def tts_fn(text, speaker, language, speed):
         if language is not None:
-            text = language_marks[language] + text + language_marks[language]
+            textAndMark = language_marks[language] + text + language_marks[language]
         speaker_id = speaker_ids[speaker]
-        stn_tst = get_text(text, hps, False)
+        stn_tst = get_text(textAndMark, hps, False)
         with no_grad():
             x_tst = stn_tst.unsqueeze(0).to(device)
             x_tst_lengths = LongTensor([stn_tst.size(0)]).to(device)
@@ -71,12 +71,12 @@ def create_tts_fn(model, hps, speaker_ids):
         del stn_tst, x_tst, x_tst_lengths, sid
         
         audio_path = './outputs/output_audio.wav'
-        processing_utils.audio_to_file(hps.data.sampling_rate, audio, audio_path, format="wav")
+        #processing_utils.audio_to_file(hps.data.sampling_rate, audio, audio_path, format="wav")
 
-        whisper_model = whisper.load_model('small')
+        whisper_model = whisper.load_model('large')
         options = dict(beam_size=5, best_of=5, word_timestamps=True)
         transcribe_options = dict(task="transcribe", **options)
-        result = whisper_model.transcribe(audio_path, fp16=False, language='Chinese', **transcribe_options)
+        result = whisper_model.transcribe(audio, fp16=False, language='Chinese', initial_prompt=text, **transcribe_options)
         
         # 结果可能是繁体，转为简体zh-cn
         for i in range(len(result['segments'])):
@@ -84,7 +84,7 @@ def create_tts_fn(model, hps, speaker_ids):
         
         # 写入字幕文件
         writer = get_writer("srt", './outputs')
-        writer_args = {"max_line_width":6, "max_line_count":2}
+        writer_args = {"max_line_width":8, "max_line_count":1}
         #writer_args = {"max_words_per_line":6}
         writer(result, audio_path, **writer_args)
         
