@@ -25,7 +25,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     video_dir = args.video_dir
-    print(os.walk(video_dir))
     filelist = list(os.walk(video_dir))[0][2]
     infos = generate_infos(filelist)
     
