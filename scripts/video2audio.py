@@ -21,10 +21,11 @@ def clip_file(file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_dir", default='/kaggle/input/video_data/')
+    parser.add_argument("--video_dir", default='/kaggle/input/video-data/')
     args = parser.parse_args()
     
     video_dir = args.video_dir
+    print(list(os.walk(video_dir)))
     filelist = list(os.walk(video_dir))[0][2]
     infos = generate_infos(filelist)
     
