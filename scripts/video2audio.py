@@ -1,14 +1,12 @@
 import os
+import argparse
 from concurrent.futures import ThreadPoolExecutor
 
 from moviepy.editor import AudioFileClip
 
-video_dir = "./video_data/"
 audio_dir = "./raw_audio/"
-filelist = list(os.walk(video_dir))[0][2]
 
-
-def generate_infos():
+def generate_infos(filelist):
     videos = []
     for file in filelist:
         if file.endswith(".mp4"):
@@ -22,6 +20,13 @@ def clip_file(file):
 
 
 if __name__ == "__main__":
-    infos = generate_infos()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--video_dir", default='/kaggle/input/video_data/')
+    args = parser.parse_args()
+    
+    video_dir = args.video_dir
+    filelist = list(os.walk(video_dir))[0][2]
+    infos = generate_infos(filelist)
+    
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         executor.map(clip_file, infos)
